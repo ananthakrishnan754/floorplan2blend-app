@@ -1,0 +1,24 @@
+# Web framework & server
+Flask>=3.0.0,<3.2.0
+Werkzeug>=3.0.0,<3.2.0
+
+# Deep Learning (CPU / CUDA compatible)
+torch>=2.2.0
+torchvision>=0.17.0
+segmentation-models-pytorch>=0.3.3
+safetensors>=0.4.0
+
+# Computer Vision & Geometry
+opencv-python>=4.8.0
+numpy>=1.24.0,<3.0.0
+Pillow>=10.0.0
+shapely>=2.0.0
+scikit-image>=0.22.0
+
+# 3D Mesh Generation & glTF/GLB Export
+trimesh>=4.0.0
+pygltflib>=1.16.0
+mapbox-earcut>=1.0.0
+
+# Configuration
+pyyaml>=6.0

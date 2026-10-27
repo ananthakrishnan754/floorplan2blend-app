@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floorplan to Blender 3D Generator</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Google Model Viewer -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-card: rgba(18, 24, 38, 0.85);
+            --bg-card-hover: rgba(26, 34, 52, 0.95);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-active: #3b82f6;
+            --accent-primary: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-cyan: #06b6d4;
+            --accent-amber: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --radius-sm: 6px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+            padding-bottom: 60px;
+        }
+
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 30px 24px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #60a5fa;
+            box-shadow: 0 0 10px #60a5fa;
+        }
+
+        h1 {
+            font-size: clamp(2.2rem, 5vw, 3.4rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Two-Column Workspace */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.25fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 980px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Upload Area */
+        .upload-dropzone {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-md);
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.02);
+            position: relative;
+        }
+
+        .upload-dropzone:hover, .upload-dropzone.dragover {
+            border-color: var(--accent-primary);
+            background: rgba(59, 130, 246, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .upload-icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 10px rgba(59, 130, 246, 0.3));
+        }
+
+        .upload-dropzone h4 {
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+
+        .upload-dropzone p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Sample Selector */
+        .section-divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 24px 0;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .section-divider::before, .section-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .section-divider span {
+            padding: 0 12px;
+        }
+
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+        }
+
+        .sample-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            padding: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .sample-card:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .sample-card.active {
+            border-color: var(--accent-primary);
+            background: rgba(59, 130, 246, 0.15);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .sample-thumb {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #fff;
+            margin-bottom: 6px;
+        }
+
+        .sample-name {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Preview Thumbnail & Run Button */
+        .active-preview-box {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-glass);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .preview-img-tag {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #fff;
+        }
+
+        .preview-meta {
+            flex: 1;
+        }
+
+        .preview-meta h5 {
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .preview-meta span {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: none;
+            border-radius: var(--radius-md);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 18px;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* 3D Viewer Panel */
+        .viewer-container {
+            position: relative;
+            height: 520px;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid var(--border-glass);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 100%;
+            outline: none;
+            --poster-color: transparent;
+        }
+
+        .viewer-empty {
+            text-align: center;
+            color: var(--text-dim);
+            padding: 40px;
+        }
+
+        .viewer-empty-icon {
+            font-size: 54px;
+            margin-bottom: 14px;
+            opacity: 0.6;
+        }
+
+        .viewer-controls-bar {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-glass);
+            pointer-events: auto;
+        }
+
+        .pill-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .pill-btn:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        /* Architecture Specs Table */
+        .specs-panel {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .specs-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .spec-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            text-align: center;
+        }
+
+        .spec-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .spec-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #38bdf8;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Download Section */
+        .export-actions {
+            margin-top: 24px;
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .btn-download {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: none;
+            border-radius: var(--radius-md);
+            color: white;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+        }
+
+        .btn-download:hover {
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+            transform: translateY(-1px);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(9, 13, 22, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 50;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            border-radius: var(--radius-md);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(59, 130, 246, 0.2);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.85s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-step {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        /* Blender Instructions */
+        .blender-tip {
+            margin-top: 24px;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            font-size: 0.85rem;
+            color: #fde68a;
+            line-height: 1.5;
+        }
+
+        .blender-tip code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="badge">
+                <span class="badge-dot"></span>
+                <span>ResNet-34 UNet · Real Boolean Openings · Blender GLB</span>
+            </div>
+            <h1>Architectural Floorplan to 3D</h1>
+            <p class="subtitle">Transform 2D floor plans into production-ready 3D Blender models with clean walls, window glass, door cutouts, and accurate real-world scale.</p>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <div class="workspace-grid">
+            
+            <!-- Left Panel: Input & Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📐 Floor Plan Input</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-dim);">PNG / JPG</span>
+                </div>
+
+                <!-- Drag & Drop Zone -->
+                <div class="upload-dropzone" id="dropzone">
+                    <div class="upload-icon">📂</div>
+                    <h4>Drop floor plan image here</h4>
+                    <p>or click to browse from your device</p>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+
+                <!-- Sample Library -->
+                <div class="section-divider">
+                    <span>or try a built-in sample</span>
+                </div>
+
+                <div class="sample-grid" id="sampleGrid">
+                    {% for s in samples %}
+                    <div class="sample-card" data-filename="{{ s.filename }}" data-url="{{ s.url }}" data-name="{{ s.name }}">
+                        <img class="sample-thumb" src="{{ s.url }}" alt="{{ s.name }}">
+                        <div class="sample-name">{{ s.name }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Selected Target Preview -->
+                <div class="active-preview-box" id="activePreviewBox" style="display: none;">
+                    <img class="preview-img-tag" id="previewImg" src="" alt="Selected floor plan">
+                    <div class="preview-meta">
+                        <h5 id="previewTitle">Selected Floor Plan</h5>
+                        <span id="previewMeta">Ready for neural reconstruction</span>
+                    </div>
+                </div>
+
+                <!-- Generate Action Button -->
+                <button class="btn-primary" id="generateBtn" disabled>
+                    <span>⚡ Generate 3D Model</span>
+                </button>
+
+                <!-- Blender Tips -->
+                <div class="blender-tip">
+                    <strong>💡 Blender 5.x Ready:</strong> Open Blender, go to <code>File → Import → glTF 2.0 (.glb/.gltf)</code>. All walls, door lintels, window sills, and glass panes import natively centered with exact meters and Z-up orientation.
+                </div>
+            </div>
+
+            <!-- Right Panel: Interactive 3D Model Viewer -->
+            <div class="card" style="position: relative;">
+                <div class="card-header">
+                    <h3 class="card-title">🏛️ 3D Model Viewer</h3>
+                    <span id="statusIndicator" style="font-size: 0.8rem; color: #10b981;">● GLTF 2.0 / Blender</span>
+                </div>
+
+                <!-- Loading State Overlay -->
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                    <div class="loading-step" id="loadingText">Segmenting walls and openings...</div>
+                </div>
+
+                <!-- Viewer Element -->
+                <div class="viewer-container">
+                    <div class="viewer-empty" id="viewerEmpty">
+                        <div class="viewer-empty-icon">🏗️</div>
+                        <h3>No 3D Model Loaded</h3>
+                        <p style="font-size: 0.85rem; margin-top: 6px;">Select a sample or upload a floor plan to generate the 3D model.</p>
+                    </div>
+
+                    <model-viewer
+                        id="modelViewer"
+                        style="display: none;"
+                        camera-controls
+                        auto-rotate
+                        rotation-per-second="18deg"
+                        shadow-intensity="1.2"
+                        shadow-softness="0.8"
+                        exposure="1.0"
+                        environment-image="neutral"
+                        alt="3D Floorplan Model">
+                    </model-viewer>
+
+                    <!-- Viewer Overlay Controls -->
+                    <div class="viewer-controls-bar" id="viewerControls" style="display: none;">
+                        <button class="pill-btn" id="toggleRotate">Pause Spin</button>
+                        <button class="pill-btn" id="resetCam">Reset Camera</button>
+                    </div>
+                </div>
+
+                <!-- Architectural Specs -->
+                <div class="specs-panel">
+                    <div class="spec-item">
+                        <div class="spec-label">Wall Height</div>
+                        <div class="spec-value" id="specWall">2.70 m</div>
+                    </div>
+                    <div class="spec-item">
+                        <div class="spec-label">Door Height</div>
+                        <div class="spec-value" id="specDoor">2.00 m</div>
+                    </div>
+                    <div class="spec-item">
+                        <div class="spec-label">Window Sill</div>
+                        <div class="spec-value" id="specWindow">0.85 m</div>
+                    </div>
+                    <div class="spec-item">
+                        <div class="spec-label">Blender Axis</div>
+                        <div class="spec-value">Z-Up</div>
+                    </div>
+                </div>
+
+                <!-- Export Controls -->
+                <div class="export-actions" id="exportActions" style="display: none;">
+                    <a id="downloadBtn" class="btn-download" download="floorplan_3d.glb">
+                        <span>📥 Download Blender GLB</span>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const sampleCards = document.querySelectorAll('.sample-card');
+        const activePreviewBox = document.getElementById('activePreviewBox');
+        const previewImg = document.getElementById('previewImg');
+        const previewTitle = document.getElementById('previewTitle');
+        const generateBtn = document.getElementById('generateBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const viewerEmpty = document.getElementById('viewerEmpty');
+        const modelViewer = document.getElementById('modelViewer');
+        const viewerControls = document.getElementById('viewerControls');
+        const exportActions = document.getElementById('exportActions');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const toggleRotate = document.getElementById('toggleRotate');
+        const resetCam = document.getElementById('resetCam');
+
+        let currentFile = null;
+        let currentSampleName = null;
+
+        // Click on dropzone opens file dialog
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        // Drag & Drop
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        function handleFileUpload(file) {
+            currentFile = file;
+            currentSampleName = null;
+            sampleCards.forEach(c => c.classList.remove('active'));
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                previewTitle.textContent = file.name;
+                activePreviewBox.style.display = 'flex';
+                generateBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Click sample card
+        sampleCards.forEach(card => {
+            card.addEventListener('click', () => {
+                sampleCards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+
+                currentSampleName = card.dataset.filename;
+                currentFile = null;
+
+                previewImg.src = card.dataset.url;
+                previewTitle.textContent = card.dataset.name;
+                activePreviewBox.style.display = 'flex';
+                generateBtn.disabled = false;
+            });
+        });
+
+        // Generate 3D Model
+        generateBtn.addEventListener('click', async () => {
+            if (!currentFile && !currentSampleName) return;
+
+            generateBtn.disabled = true;
+            loadingOverlay.style.display = 'flex';
+
+            const steps = [
+                'Running UNet segmentation...',
+                'Extracting wall, door & window contours...',
+                'Cutting true architectural openings in walls...',
+                'Extruding lintels, sills, and glass panes...',
+                'Aligning to Blender glTF coordinate system...'
+            ];
+            let stepIdx = 0;
+            const stepInterval = setInterval(() => {
+                stepIdx = (stepIdx + 1) % steps.length;
+                loadingText.textContent = steps[stepIdx];
+            }, 1000);
+
+            const formData = new FormData();
+            if (currentFile) {
+                formData.append('file', currentFile);
+            } else if (currentSampleName) {
+                formData.append('sample_name', currentSampleName);
+            }
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                clearInterval(stepInterval);
+                loadingOverlay.style.display = 'none';
+                generateBtn.disabled = false;
+
+                if (data.success) {
+                    viewerEmpty.style.display = 'none';
+                    modelViewer.src = data.view_url;
+                    modelViewer.style.display = 'block';
+                    viewerControls.style.display = 'flex';
+                    exportActions.style.display = 'flex';
+                    downloadBtn.href = data.download_url;
+                    downloadBtn.download = `${currentSampleName ? currentSampleName.split('.')[0] : 'floorplan'}_3d.glb`;
+                } else {
+                    alert('Error generating 3D model: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                clearInterval(stepInterval);
+                loadingOverlay.style.display = 'none';
+                generateBtn.disabled = false;
+                alert('Connection error: ' + err.message);
+            }
+        });
+
+        // Viewer controls
+        let isRotating = true;
+        toggleRotate.addEventListener('click', () => {
+            isRotating = !isRotating;
+            modelViewer.autoRotate = isRotating;
+            toggleRotate.textContent = isRotating ? 'Pause Spin' : 'Resume Spin';
+        });
+
+        resetCam.addEventListener('click', () => {
+            modelViewer.cameraOrbit = '0deg 75deg 105%';
+            modelViewer.resetTurntableRotation();
+        });
+
+        // Auto-select first sample if available
+        if (sampleCards.length > 0) {
+            sampleCards[0].click();
+        }
+    </script>
+</body>
+</html>
